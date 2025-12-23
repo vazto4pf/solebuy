@@ -104,7 +104,7 @@ Deno.serve(async (req: Request) => {
         recipient_number: metadata.recipient_number,
         mobile_money_number: '',
         payment_network: 'Paystack',
-        status: "completed",
+        status: "processing",
       })
       .select()
       .single();
