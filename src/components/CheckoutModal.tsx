@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { X, Smartphone, CheckCircle2, AlertCircle } from 'lucide-react';
+import { X, CheckCircle2, AlertCircle } from 'lucide-react';
 import { Provider, Bundle } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
@@ -11,13 +11,9 @@ interface CheckoutModalProps {
   onClose: () => void;
 }
 
-const MOBILE_NETWORKS = ['MTN', 'Vodafone', 'AirtelTigo'];
-
 export default function CheckoutModal({ provider, bundle, recipientNumber, onClose }: CheckoutModalProps) {
   const { user } = useAuth();
   const [step, setStep] = useState<'payment' | 'success'>('payment');
-  const [selectedNetwork, setSelectedNetwork] = useState('MTN');
-  const [mobileMoneyNumber, setMobileMoneyNumber] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -27,38 +23,99 @@ export default function CheckoutModal({ provider, bundle, recipientNumber, onClo
       return;
     }
 
-    if (!mobileMoneyNumber.trim()) {
-      setError('Please enter your mobile money number');
-      return;
-    }
-
     setLoading(true);
     setError('');
 
     try {
-      const { error: insertError } = await supabase.from('orders').insert({
-        user_id: user.id,
-        provider_name: provider.name,
-        provider_logo: provider.logo,
-        provider_color: provider.color,
-        bundle_id: bundle.id,
-        data_amount: bundle.dataAmount,
-        price: bundle.price,
-        recipient_number: recipientNumber,
-        mobile_money_number: mobileMoneyNumber,
-        payment_network: selectedNetwork,
-        status: 'pending',
-      });
+      const { data: orderData, error: insertError } = await supabase
+        .from('orders')
+        .insert({
+          user_id: user.id,
+          provider_name: provider.name,
+          provider_logo: provider.logo,
+          provider_color: provider.color,
+          bundle_id: bundle.id,
+          data_amount: bundle.dataAmount,
+          price: bundle.price,
+          recipient_number: recipientNumber,
+          mobile_money_number: '',
+          payment_network: 'Paystack',
+          status: 'pending',
+        })
+        .select()
+        .single();
 
       if (insertError) throw insertError;
 
-      setTimeout(() => {
-        setLoading(false);
-        setStep('success');
-      }, 1000);
+      const paystackKey = import.meta.env.VITE_PAYSTACK_PUBLIC_KEY;
+      if (!paystackKey || paystackKey === 'pk_test_your_paystack_public_key_here') {
+        throw new Error('Paystack public key not configured');
+      }
+
+      const handler = window.PaystackPop.setup({
+        key: paystackKey,
+        email: user.email,
+        amount: Math.round(bundle.price * 100),
+        currency: 'GHS',
+        ref: `${orderData.id}_${Date.now()}`,
+        metadata: {
+          custom_fields: [
+            {
+              display_name: 'Provider',
+              variable_name: 'provider',
+              value: provider.name,
+            },
+            {
+              display_name: 'Bundle',
+              variable_name: 'bundle',
+              value: bundle.dataAmount,
+            },
+            {
+              display_name: 'Recipient',
+              variable_name: 'recipient',
+              value: recipientNumber,
+            },
+          ],
+        },
+        callback: async (response) => {
+          try {
+            const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/verify-payment`;
+            const verifyResponse = await fetch(apiUrl, {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                reference: response.reference,
+                orderId: orderData.id,
+              }),
+            });
+
+            const verifyData = await verifyResponse.json();
+
+            if (verifyData.verified) {
+              setLoading(false);
+              setStep('success');
+            } else {
+              throw new Error('Payment verification failed');
+            }
+          } catch (err) {
+            setLoading(false);
+            setError('Payment verification failed. Please contact support.');
+            console.error('Verification error:', err);
+          }
+        },
+        onClose: () => {
+          setLoading(false);
+          setError('Payment cancelled');
+        },
+      });
+
+      handler.newTransaction();
     } catch (err) {
       setLoading(false);
-      setError('Failed to process payment. Please try again.');
+      setError('Failed to initialize payment. Please try again.');
       console.error('Payment error:', err);
     }
   };
@@ -100,7 +157,7 @@ export default function CheckoutModal({ provider, bundle, recipientNumber, onClo
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-gray-400">Payment Method</span>
-                <span className="text-white font-medium">{selectedNetwork}</span>
+                <span className="text-white font-medium">Paystack</span>
               </div>
               <div className="pt-3 border-t border-gray-700">
                 <div className="flex justify-between">
@@ -185,41 +242,22 @@ export default function CheckoutModal({ provider, bundle, recipientNumber, onClo
                     </div>
                   )}
 
-                  <div className="space-y-4">
-                    <div className="space-y-2">
-                      <label className="block text-sm font-medium text-gray-300">Select Network</label>
-                      <select
-                        value={selectedNetwork}
-                        onChange={(e) => setSelectedNetwork(e.target.value)}
-                        className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500"
-                      >
-                        {MOBILE_NETWORKS.map((network) => (
-                          <option key={network} value={network}>
-                            {network}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div className="space-y-2">
-                      <label className="block text-sm font-medium text-gray-300">Mobile Money Number</label>
-                      <div className="relative">
-                        <Smartphone className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-                        <input
-                          type="tel"
-                          value={mobileMoneyNumber}
-                          onChange={(e) => setMobileMoneyNumber(e.target.value)}
-                          className="w-full pl-10 pr-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500"
-                          placeholder="024 123 4567"
-                        />
+                  <div className="bg-gray-800/50 rounded-lg p-4 sm:p-6 space-y-3">
+                    <h3 className="text-base font-semibold text-white">Payment Method</h3>
+                    <div className="flex items-center space-x-3">
+                      <img
+                        src="https://paystack.com/assets/img/paystack-icon-blue.png"
+                        alt="Paystack"
+                        className="w-10 h-10"
+                      />
+                      <div>
+                        <p className="text-white font-medium">Paystack</p>
+                        <p className="text-gray-400 text-xs">Secure payment powered by Paystack</p>
                       </div>
                     </div>
-
-                    <div className="bg-gray-800/50 rounded-lg p-3 sm:p-4">
-                      <p className="text-gray-400 text-xs sm:text-sm">
-                        You will receive a prompt on your mobile device to authorize this payment
-                      </p>
-                    </div>
+                    <p className="text-gray-400 text-xs">
+                      Pay with Mobile Money, Card, or Bank Transfer
+                    </p>
                   </div>
 
                   <button
