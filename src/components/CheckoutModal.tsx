@@ -40,10 +40,15 @@ export default function CheckoutModal({ provider, bundle, recipientNumber, onClo
         throw new Error('Paystack public key not configured');
       }
 
-      console.log('Creating order in database...');
-      const { data: orderData, error: insertError } = await supabase
-        .from('orders')
-        .insert({
+      console.log('Setting up Paystack handler...');
+
+      const handler = window.PaystackPop.setup({
+        key: paystackKey,
+        email: user.email,
+        amount: Math.round(bundle.price * 100),
+        currency: 'GHS',
+        ref: `${user.id}_${Date.now()}`,
+        metadata: {
           user_id: user.id,
           provider_name: provider.name,
           provider_logo: provider.logo,
@@ -52,32 +57,6 @@ export default function CheckoutModal({ provider, bundle, recipientNumber, onClo
           data_amount: bundle.dataAmount,
           price: bundle.price,
           recipient_number: recipientNumber,
-          mobile_money_number: '',
-          payment_network: 'Paystack',
-          status: 'pending',
-        })
-        .select()
-        .single();
-
-      if (insertError) {
-        console.error('Database error:', insertError);
-        throw new Error(`Failed to create order: ${insertError.message}`);
-      }
-
-      if (!orderData) {
-        throw new Error('Failed to create order: No data returned');
-      }
-
-      console.log('Order created:', orderData.id);
-      console.log('Setting up Paystack handler...');
-
-      const handler = window.PaystackPop.setup({
-        key: paystackKey,
-        email: user.email,
-        amount: Math.round(bundle.price * 100),
-        currency: 'GHS',
-        ref: `${orderData.id}_${Date.now()}`,
-        metadata: {
           custom_fields: [
             {
               display_name: 'Provider',
@@ -107,7 +86,6 @@ export default function CheckoutModal({ provider, bundle, recipientNumber, onClo
             },
             body: JSON.stringify({
               reference: response.reference,
-              orderId: orderData.id,
             }),
           })
           .then(res => res.json())
