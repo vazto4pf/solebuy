@@ -27,15 +27,20 @@ export default function CheckoutModal({ provider, bundle, recipientNumber, onClo
     setError('');
 
     try {
+      console.log('Starting payment process...');
+
       if (!window.PaystackPop) {
         throw new Error('Paystack is not loaded. Please refresh the page and try again.');
       }
 
       const paystackKey = import.meta.env.VITE_PAYSTACK_PUBLIC_KEY;
+      console.log('Paystack key available:', !!paystackKey);
+
       if (!paystackKey || paystackKey === 'pk_test_your_paystack_public_key_here') {
         throw new Error('Paystack public key not configured');
       }
 
+      console.log('Creating order in database...');
       const { data: orderData, error: insertError } = await supabase
         .from('orders')
         .insert({
@@ -54,7 +59,17 @@ export default function CheckoutModal({ provider, bundle, recipientNumber, onClo
         .select()
         .single();
 
-      if (insertError) throw insertError;
+      if (insertError) {
+        console.error('Database error:', insertError);
+        throw new Error(`Failed to create order: ${insertError.message}`);
+      }
+
+      if (!orderData) {
+        throw new Error('Failed to create order: No data returned');
+      }
+
+      console.log('Order created:', orderData.id);
+      console.log('Setting up Paystack handler...');
 
       const handler = window.PaystackPop.setup({
         key: paystackKey,
@@ -82,6 +97,7 @@ export default function CheckoutModal({ provider, bundle, recipientNumber, onClo
           ],
         },
         callback: function(response: any) {
+          console.log('Payment successful, verifying...');
           const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/verify-payment`;
           fetch(apiUrl, {
             method: 'POST',
@@ -96,6 +112,7 @@ export default function CheckoutModal({ provider, bundle, recipientNumber, onClo
           })
           .then(res => res.json())
           .then(verifyData => {
+            console.log('Verification response:', verifyData);
             if (verifyData.verified) {
               setLoading(false);
               setStep('success');
@@ -111,12 +128,20 @@ export default function CheckoutModal({ provider, bundle, recipientNumber, onClo
           });
         },
         onClose: function() {
+          console.log('Payment popup closed');
           setLoading(false);
           setError('Payment cancelled');
         },
       });
 
+      console.log('Opening Paystack popup...');
       handler.openIframe();
+
+      // Set loading to false after a short delay to prevent infinite spinner
+      // The Paystack popup should handle its own loading state
+      setTimeout(() => {
+        setLoading(false);
+      }, 1000);
     } catch (err) {
       setLoading(false);
       const errorMessage = err instanceof Error ? err.message : 'Failed to initialize payment. Please try again.';
