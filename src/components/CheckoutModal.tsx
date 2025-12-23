@@ -56,6 +56,41 @@ export default function CheckoutModal({ provider, bundle, recipientNumber, onClo
 
       if (insertError) throw insertError;
 
+      const onSuccess = async (response: any) => {
+        try {
+          const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/verify-payment`;
+          const verifyResponse = await fetch(apiUrl, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              reference: response.reference,
+              orderId: orderData.id,
+            }),
+          });
+
+          const verifyData = await verifyResponse.json();
+
+          if (verifyData.verified) {
+            setLoading(false);
+            setStep('success');
+          } else {
+            throw new Error('Payment verification failed');
+          }
+        } catch (err) {
+          setLoading(false);
+          setError('Payment verification failed. Please contact support.');
+          console.error('Verification error:', err);
+        }
+      };
+
+      const onCancel = () => {
+        setLoading(false);
+        setError('Payment cancelled');
+      };
+
       const handler = window.PaystackPop.setup({
         key: paystackKey,
         email: user.email,
@@ -81,39 +116,8 @@ export default function CheckoutModal({ provider, bundle, recipientNumber, onClo
             },
           ],
         },
-        callback: async (response) => {
-          try {
-            const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/verify-payment`;
-            const verifyResponse = await fetch(apiUrl, {
-              method: 'POST',
-              headers: {
-                'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                reference: response.reference,
-                orderId: orderData.id,
-              }),
-            });
-
-            const verifyData = await verifyResponse.json();
-
-            if (verifyData.verified) {
-              setLoading(false);
-              setStep('success');
-            } else {
-              throw new Error('Payment verification failed');
-            }
-          } catch (err) {
-            setLoading(false);
-            setError('Payment verification failed. Please contact support.');
-            console.error('Verification error:', err);
-          }
-        },
-        onClose: () => {
-          setLoading(false);
-          setError('Payment cancelled');
-        },
+        callback: onSuccess,
+        onClose: onCancel,
       });
 
       handler.newTransaction();
