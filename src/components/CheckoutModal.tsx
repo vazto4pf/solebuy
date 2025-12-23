@@ -40,35 +40,9 @@ export default function CheckoutModal({ provider, bundle, recipientNumber, onClo
         throw new Error('Paystack public key not configured');
       }
 
-      console.log('Creating order in database...');
-      const { data: orderData, error: insertError } = await supabase
-        .from('orders')
-        .insert({
-          user_id: user.id,
-          provider_name: provider.name,
-          provider_logo: provider.logo,
-          provider_color: provider.color,
-          bundle_id: bundle.id,
-          data_amount: bundle.dataAmount,
-          price: bundle.price,
-          recipient_number: recipientNumber,
-          mobile_money_number: '',
-          payment_network: 'Paystack',
-          status: 'pending',
-        })
-        .select()
-        .single();
-
-      if (insertError) {
-        console.error('Database error:', insertError);
-        throw new Error(`Failed to create order: ${insertError.message}`);
-      }
-
-      if (!orderData) {
-        throw new Error('Failed to create order: No data returned');
-      }
-
-      console.log('Order created:', orderData.id);
+      // Generate unique reference without creating order
+      const uniqueRef = `ORDER_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+      console.log('Generated reference:', uniqueRef);
       console.log('Setting up Paystack handler...');
 
       const handler = window.PaystackPop.setup({
@@ -76,8 +50,17 @@ export default function CheckoutModal({ provider, bundle, recipientNumber, onClo
         email: user.email,
         amount: Math.round(bundle.price * 100),
         currency: 'GHS',
-        ref: `${orderData.id}_${Date.now()}`,
+        ref: uniqueRef,
         metadata: {
+          user_id: user.id,
+          provider_name: provider.name,
+          provider_logo: provider.logo,
+          provider_color: provider.color,
+          bundle_id: bundle.id,
+          data_amount: bundle.dataAmount,
+          price: bundle.price.toString(),
+          recipient_number: recipientNumber,
+          payment_network: 'Paystack',
           custom_fields: [
             {
               display_name: 'Provider',
@@ -97,7 +80,7 @@ export default function CheckoutModal({ provider, bundle, recipientNumber, onClo
           ],
         },
         callback: function(response: any) {
-          console.log('Payment successful, verifying...');
+          console.log('Payment successful, verifying and creating order...');
           const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/verify-payment`;
           fetch(apiUrl, {
             method: 'POST',
@@ -107,7 +90,6 @@ export default function CheckoutModal({ provider, bundle, recipientNumber, onClo
             },
             body: JSON.stringify({
               reference: response.reference,
-              orderId: orderData.id,
             }),
           })
           .then(res => res.json())
