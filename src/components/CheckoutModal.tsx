@@ -137,11 +137,8 @@ export default function CheckoutModal({ provider, bundle, recipientNumber, onClo
       console.log('Opening Paystack popup...');
       handler.openIframe();
 
-      // Set loading to false after a short delay to prevent infinite spinner
-      // The Paystack popup should handle its own loading state
-      setTimeout(() => {
-        setLoading(false);
-      }, 1000);
+      // Turn off loading immediately - Paystack iframe handles its own state
+      setLoading(false);
     } catch (err) {
       setLoading(false);
       const errorMessage = err instanceof Error ? err.message : 'Failed to initialize payment. Please try again.';
