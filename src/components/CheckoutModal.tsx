@@ -116,7 +116,7 @@ export default function CheckoutModal({ provider, bundle, recipientNumber, onClo
         },
       });
 
-      handler.newTransaction();
+      handler.openIframe();
     } catch (err) {
       setLoading(false);
       const errorMessage = err instanceof Error ? err.message : 'Failed to initialize payment. Please try again.';
