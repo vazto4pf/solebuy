@@ -27,6 +27,15 @@ export default function CheckoutModal({ provider, bundle, recipientNumber, onClo
     setError('');
 
     try {
+      if (!window.PaystackPop) {
+        throw new Error('Paystack is not loaded. Please refresh the page and try again.');
+      }
+
+      const paystackKey = import.meta.env.VITE_PAYSTACK_PUBLIC_KEY;
+      if (!paystackKey || paystackKey === 'pk_test_your_paystack_public_key_here') {
+        throw new Error('Paystack public key not configured');
+      }
+
       const { data: orderData, error: insertError } = await supabase
         .from('orders')
         .insert({
@@ -46,11 +55,6 @@ export default function CheckoutModal({ provider, bundle, recipientNumber, onClo
         .single();
 
       if (insertError) throw insertError;
-
-      const paystackKey = import.meta.env.VITE_PAYSTACK_PUBLIC_KEY;
-      if (!paystackKey || paystackKey === 'pk_test_your_paystack_public_key_here') {
-        throw new Error('Paystack public key not configured');
-      }
 
       const handler = window.PaystackPop.setup({
         key: paystackKey,
@@ -115,7 +119,8 @@ export default function CheckoutModal({ provider, bundle, recipientNumber, onClo
       handler.newTransaction();
     } catch (err) {
       setLoading(false);
-      setError('Failed to initialize payment. Please try again.');
+      const errorMessage = err instanceof Error ? err.message : 'Failed to initialize payment. Please try again.';
+      setError(errorMessage);
       console.error('Payment error:', err);
     }
   };
