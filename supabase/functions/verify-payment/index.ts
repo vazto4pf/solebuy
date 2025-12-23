@@ -66,6 +66,15 @@ Deno.serve(async (req: Request) => {
     // Payment verified successfully, now create the order
     const metadata = verifyData.data.metadata;
 
+    // Provider logos mapping
+    const providerLogos: Record<string, string> = {
+      "MTN": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRVmQyK_FgXQzLHcHjQlbFILlXvxO5zFxIGMQ&s",
+      "Telecel": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcT4TqD0T2VEJrR9WhEQxoTWwvI7gq7XP2_FnA&s",
+      "AirtelTigo": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQWYzLF3cxCfqV5zVZ9zHaQzLqy_S2gLK1yjQ&s"
+    };
+
+    const providerLogo = providerLogos[metadata.provider_name] || "";
+
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
@@ -87,14 +96,14 @@ Deno.serve(async (req: Request) => {
       .insert({
         user_id: metadata.user_id,
         provider_name: metadata.provider_name,
-        provider_logo: metadata.provider_logo,
+        provider_logo: providerLogo,
         provider_color: metadata.provider_color,
         bundle_id: metadata.bundle_id,
         data_amount: metadata.data_amount,
         price: parseFloat(metadata.price),
         recipient_number: metadata.recipient_number,
         mobile_money_number: '',
-        payment_network: metadata.payment_network,
+        payment_network: 'Paystack',
         status: "completed",
       })
       .select()

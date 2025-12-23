@@ -54,13 +54,11 @@ export default function CheckoutModal({ provider, bundle, recipientNumber, onClo
         metadata: {
           user_id: user.id,
           provider_name: provider.name,
-          provider_logo: provider.logo,
           provider_color: provider.color,
           bundle_id: bundle.id,
           data_amount: bundle.dataAmount,
           price: bundle.price.toString(),
           recipient_number: recipientNumber,
-          payment_network: 'Paystack',
           custom_fields: [
             {
               display_name: 'Provider',
