@@ -16,11 +16,11 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const { reference } = await req.json();
+    const { reference, orderId } = await req.json();
 
-    if (!reference) {
+    if (!reference || !orderId) {
       return new Response(
-        JSON.stringify({ error: "Missing payment reference" }),
+        JSON.stringify({ error: "Missing required parameters" }),
         {
           status: 400,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -62,17 +62,6 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const metadata = verifyData.data.metadata;
-    if (!metadata || !metadata.user_id) {
-      return new Response(
-        JSON.stringify({ error: "Invalid payment metadata" }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
-      );
-    }
-
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
@@ -88,26 +77,15 @@ Deno.serve(async (req: Request) => {
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    const { error: insertError } = await supabase
+    const { error: updateError } = await supabase
       .from("orders")
-      .insert({
-        user_id: metadata.user_id,
-        provider_name: metadata.provider_name,
-        provider_logo: metadata.provider_logo,
-        provider_color: metadata.provider_color,
-        bundle_id: metadata.bundle_id,
-        data_amount: metadata.data_amount,
-        price: metadata.price,
-        recipient_number: metadata.recipient_number,
-        mobile_money_number: '',
-        payment_network: 'Paystack',
-        status: 'completed',
-      });
+      .update({ status: "completed" })
+      .eq("id", orderId);
 
-    if (insertError) {
-      console.error("Error creating order:", insertError);
+    if (updateError) {
+      console.error("Error updating order:", updateError);
       return new Response(
-        JSON.stringify({ error: "Failed to create order" }),
+        JSON.stringify({ error: "Failed to update order status" }),
         {
           status: 500,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -118,7 +96,7 @@ Deno.serve(async (req: Request) => {
     return new Response(
       JSON.stringify({
         verified: true,
-        message: "Payment verified and order created successfully",
+        message: "Payment verified and order updated successfully",
       }),
       {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
