@@ -32,8 +32,8 @@ const providers: Provider[] = [
     color: '#E31E24',
     bundles: [
       { id: 'telecel-1', name: 'Mini Bundle', dataAmount: '10GB', validity: '24 Hours', price: 37.00 },
-      { id: 'telecel-2', name: 'Daily Bundle', dataAmount: '15MB', validity: '24 Hours', price: 56.00 },
-      { id: 'telecel-3', name: 'Weekly Starter', dataAmount: '20MB', validity: '7 Days', price: 75.00 },
+      { id: 'telecel-2', name: 'Daily Bundle', dataAmount: '15GB', validity: '24 Hours', price: 56.00 },
+      { id: 'telecel-3', name: 'Weekly Starter', dataAmount: '20GB', validity: '7 Days', price: 75.00 },
       { id: 'telecel-4', name: 'Weekly Plus', dataAmount: '30GB', validity: '7 Days', price: 110.00 },
       { id: 'telecel-5', name: 'Monthly Basic', dataAmount: '40GB', validity: '30 Days', price: 145.00 },
       { id: 'telecel-6', name: 'Monthly Standard', dataAmount: '50GB', validity: '30 Days', price: 179.00 },
